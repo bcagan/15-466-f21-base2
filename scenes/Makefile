@@ -18,10 +18,18 @@ DIST=../dist
 all : \
 	$(DIST)/hexapod.pnct \
 	$(DIST)/hexapod.scene \
+	$(DIST)/tree-world.pnct \
+	$(DIST)/tree-world.scene \
 
 
 $(DIST)/hexapod.scene : hexapod.blend $(EXPORT_SCENE)
 	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Main '$@'
 
 $(DIST)/hexapod.pnct : hexapod.blend $(EXPORT_MESHES)
+	$(BLENDER) --background --python $(EXPORT_MESHES) -- '$<':Main '$@'
+
+$(DIST)/tree-world.scene : tree-world.blend $(EXPORT_SCENE)
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Main '$@'
+
+$(DIST)/tree-world.pnct : tree-world.blend $(EXPORT_MESHES)
 	$(BLENDER) --background --python $(EXPORT_MESHES) -- '$<':Main '$@'

@@ -88,6 +88,15 @@ void Scene::draw(Camera const &camera) const {
 }
 
 void Scene::draw(glm::mat4 const &world_to_clip, glm::mat4x3 const &world_to_light) const {
+	auto getApple = [this](int* whichApple, std::string drawTransform) {
+		if (drawTransform.size() <= 5 || (drawTransform.size() > 11 && drawTransform.substr(0, 11) != "AppleOnTree")
+			|| (drawTransform.size() > 5 && drawTransform.size() <=11 && drawTransform.substr(0, 5) != "Fruit")) return false;
+		if (drawTransform.size() > 11)
+			*whichApple = ((uint8_t)drawTransform.at(11)) - 48;
+		if(drawTransform.size() > 5 && drawTransform.size() <=11)
+			*whichApple = ((uint8_t)drawTransform.at(5)) - 38;
+		return true;
+	};
 
 	//Iterate through all drawables, sending each one to OpenGL:
 	for (auto const &drawable : drawables) {
@@ -100,6 +109,9 @@ void Scene::draw(glm::mat4 const &world_to_clip, glm::mat4x3 const &world_to_lig
 		if (pipeline.vao == 0) continue;
 		//skip any drawables that don't contain any vertices:
 		if (pipeline.count == 0) continue;
+		//skip any drawables that have shouldDraw set to false
+		int whichApple = 0;
+		if (getApple(&whichApple, (drawable.transform)->name) && !appleBools[whichApple]) continue;
 
 
 		//Set shader program:

@@ -10,6 +10,9 @@
  *
  */
 
+#define APPLE_WIN_NUM 14
+//(0-9 on tree, 10-13 on block)
+
 #include "GL.hpp"
 
 #include <glm/glm.hpp>
@@ -21,6 +24,12 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <array>
+
+struct MeshBBox {
+	glm::vec3 min = glm::vec3(std::numeric_limits< float >::infinity());
+	glm::vec3 max = glm::vec3(-std::numeric_limits< float >::infinity());
+};
 
 struct Scene {
 	struct Transform {
@@ -53,6 +62,7 @@ struct Scene {
 		//a 'Drawable' attaches attribute data to a transform:
 		Drawable(Transform *transform_) : transform(transform_) { assert(transform); }
 		Transform * transform;
+		MeshBBox bbox; //Bbox used for detecting canopy sides
 
 		//Contains all the data needed to run the OpenGL pipeline:
 		struct Pipeline {
@@ -150,4 +160,6 @@ struct Scene {
 	Scene &operator=(Scene const &); //...as scene = scene
 	//... as a set() function that optionally returns the transform->transform mapping:
 	void set(Scene const &, std::unordered_map< Transform const *, Transform * > *transform_map = nullptr);
+
+	std::array<bool, APPLE_WIN_NUM> appleBools;
 };

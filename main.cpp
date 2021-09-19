@@ -160,6 +160,10 @@ int main(int argc, char **argv) {
 			elapsed = std::min(0.1f, elapsed);
 
 			Mode::current->update(elapsed);
+			if (!Mode::current->isPlaying()) {
+				Mode::set_current(NULL);
+				Mode::set_current(std::make_shared< PlayMode >());
+			}
 			if (!Mode::current) break;
 		}
 
