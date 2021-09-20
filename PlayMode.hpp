@@ -57,6 +57,7 @@ struct PlayMode : Mode {
 	glm::quat branch_rotation;
 	glm::quat sphere_rotation;
 	glm::vec2 branchRotAngles = glm::vec2(0.0, 0.0);
+	glm::vec2 canopyRotAngles = glm::vec2(0.0,0.0); 
 	float canopyHeight;
 
 	//Stage Transforms

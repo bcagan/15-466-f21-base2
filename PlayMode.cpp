@@ -50,9 +50,6 @@ Load< Scene > tree_scene(LoadTagDefault, []() -> Scene const * {
 	});
 });
 
-//To Do: //Camera is broken if angled initially at all... why?
-//Canopy rotate near upper branch rotate limits
-
 PlayMode::PlayMode() : scene(*tree_scene) {
 
 	//Setting up game state variables
@@ -405,6 +402,30 @@ void PlayMode::update(float elapsed) {
 	}
 	levelUp();
 	if (level == 3) rotateIsland(); //Level 3 adds island rotations every 20 seconds
+
+	//Add an extra movement to the canopy to indicate force of gravity near edge of map
+	if ((branchRotAngles.x + islandRotAngles.x) >= 0.85f * ROT_LIMIT) { //If beyond limit for x and y, gets amount beyond limit,
+		canopyRotAngles.x =1.5f*( branchRotAngles.x + islandRotAngles.x - 0.85f * ROT_LIMIT); //and adds 1.5 times that to canopy rotation
+	}
+	else if ((branchRotAngles.x + islandRotAngles.x) <= -0.85f * ROT_LIMIT) {
+		canopyRotAngles.x = 1.5f * (branchRotAngles.x + islandRotAngles.x + 0.85f * ROT_LIMIT);
+	}
+	else {
+		canopyRotAngles.x = 0.f;
+
+	} //The end result is kind of a drooping effect on the canopy near the edge, simulating "gravity" on it
+	if ((branchRotAngles.y + islandRotAngles.y) >= 0.85f * ROT_LIMIT) {
+		canopyRotAngles.y = 1.5f*(branchRotAngles.y + islandRotAngles.y - 0.85f*ROT_LIMIT);
+	}
+	else if ((branchRotAngles.y + islandRotAngles.y) <= -0.85f * ROT_LIMIT) {
+		canopyRotAngles.y = 1.5f*(branchRotAngles.y + islandRotAngles.y + 0.85f * ROT_LIMIT);
+	}
+	else {
+		canopyRotAngles.y = 0.0f; //Shouldn't be needed but resets angle to be safe
+	}
+	canopy_rotation = glm::normalize(glm::angleAxis(canopyRotAngles.x, glm::vec3(0.0f, 1.0f, 0.0f)));
+	canopy_rotation = glm::normalize(glm::angleAxis(canopyRotAngles.y, glm::vec3(1.0f, 0.0f, 0.0f)) * canopy_rotation);
+	canopy->rotation = canopy_rotation;
 
 	//move camera:
 	{
