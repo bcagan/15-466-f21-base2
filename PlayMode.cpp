@@ -51,8 +51,6 @@ Load< Scene > tree_scene(LoadTagDefault, []() -> Scene const * {
 });
 
 //To Do: //Camera is broken if angled initially at all... why?
-//Make asset textures change with each level
-//
 //Canopy rotate near upper branch rotate limits
 
 PlayMode::PlayMode() : scene(*tree_scene) {
@@ -71,20 +69,6 @@ PlayMode::PlayMode() : scene(*tree_scene) {
 	bgCols[1][0] = col2[0]; bgCols[1][1] = col2[1]; bgCols[1][2] = col2[2]; bgCols[1][3] = col2[3];
 	bgCols[2][0] = col3[0]; bgCols[2][1] = col3[1]; bgCols[2][2] = col3[2]; bgCols[2][3] = col3[3];
 
-	auto getBBox = [this](std::string name) {
-		for (auto& thisDraw : scene.drawables) {
-			if (thisDraw.transform->name.compare(name) == 0) {
-				return thisDraw.bbox;
-			}
-		}
-		MeshBBox newBox;
-		newBox.min = glm::vec3(0.0f);
-		newBox.max = newBox.min;
-		std::string errString = std::string("BBox not found not found. Mesh: %s").append(name);
-		throw std::runtime_error(errString.c_str());
-		return newBox;
-	};
-
 	//Set up list of paraemters for whether apples should be drawn on tree
 	for (size_t appleInd = 0; appleInd < 14; appleInd++) {
 		scene.appleBools[appleInd] = false;
@@ -92,16 +76,13 @@ PlayMode::PlayMode() : scene(*tree_scene) {
 	//get pointers to transforms for convenience:
 	for (auto& transform : scene.transforms) {
 		if (transform.name == "Branch") branch = &transform;
-		else if (transform.name == "Canopy") {
+		else if (transform.name == "Canopy") { //Canopy needs to store the height in order to detect closest fruit
 			canopy = &transform;
-			MeshBBox canopyBox = getBBox(std::string("Canopy"));
-			float distX = abs(canopyBox.max.x - canopyBox.min.x);
-			float distY = abs(canopyBox.max.y - canopyBox.min.y);
 			canopyHeight = transform.position.z;
 			canopyDist = glm::vec3(0.0f, 0.0f, canopyHeight);
 		}
 		else if (transform.name == "Island") island = &transform;
-		else if (transform.name == "Fruit0") { 
+		else if (transform.name == "Fruit0") {  //All fruit need to also store their world positions for later calculations
 			fruit0 = &transform;
 			fruitPos[0] = transform.make_local_to_world() * glm::vec4(0.0f, 0.0f, 0.0, 1.0f);
 		}
@@ -117,6 +98,9 @@ PlayMode::PlayMode() : scene(*tree_scene) {
 			fruit3 = &transform;
 			fruitPos[3] = transform.make_local_to_world() * glm::vec4(0.0f, 0.0f, 0.0, 1.0f);
 		}
+		else if (transform.name == "Sphere") {
+			sphere = &transform;
+		}
 	}
 	if (branch == nullptr) throw std::runtime_error("Branch not found.");
 	if (canopy == nullptr) throw std::runtime_error("Canopy not found.");
@@ -125,6 +109,7 @@ PlayMode::PlayMode() : scene(*tree_scene) {
 	if (fruit1 == nullptr) throw std::runtime_error("Fruit1 not found.");
 	if (fruit2 == nullptr) throw std::runtime_error("Fruit2 not found.");
 	if (fruit3 == nullptr) throw std::runtime_error("Fruit3 not found.");
+	if (sphere == nullptr) throw std::runtime_error("Sphere not found.");
 	//One of these is not found
 
 	branch_rotation = branch->rotation;
@@ -134,7 +119,7 @@ PlayMode::PlayMode() : scene(*tree_scene) {
 	fruit1_rotation = fruit1->rotation;
 	fruit2_rotation = fruit2->rotation;
 	fruit3_rotation = fruit3->rotation;
-
+	sphere_rotation = sphere->rotation;
 
 
 	//get pointer to camera for convenience:
@@ -149,7 +134,7 @@ bool PlayMode::isPlaying() {
 PlayMode::~PlayMode() {
 }
 
-void PlayMode::levelUp() {
+void PlayMode::levelUp() { 
 	if (points >= 10){ //If level up, despawn all apples and iterate level
 		for (size_t whichApple = 0; whichApple < 14; whichApple++) {
 			scene.appleBools[whichApple] = false;
@@ -246,7 +231,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			camera->transform->rotation = glm::normalize(glm::angleAxis(cameraRotAngle, glm::vec3(0.0f, 0.0f, 1.0f)));*/
 			glm::vec3 zPos = camera->transform->position * glm::vec3(0.0,0.0,1.0);
 			noZPos.z = 0.0;
-			camera->transform->position =
+			camera->transform->position = 
 				glm::mat3_cast(glm::angleAxis(-motion.x*camera->fovy, glm::vec3(0.0f, 0.0f, 1.0f))) * noZPos + zPos;
 			return true;
 		}
@@ -303,15 +288,15 @@ void PlayMode::update(float elapsed) {
 		}
 	};
 
-	auto spawnApples = [this]() { //Needs documentation
+	auto spawnApples = [this]() { 
 		//Change so not new randome engien each time
 		unsigned seed = (unsigned int) std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
 		std::uniform_int_distribution<uint8_t> dist(10, 13);
 		uint8_t firstPick = dist(std::default_random_engine(seed));
 		uint8_t secondPick = 11;
-		std::uniform_int_distribution<uint8_t> dist2(11, 13);
+		std::uniform_int_distribution<uint8_t> dist2(11, 13); //Randomly generate which apples is the first second (from 4 and 3)
 		if(level == 1){
-			switch (firstPick) {
+			switch (firstPick) { //Each case either sets the second apple, or does so and handles collisions with first pick
 			case(10):
 				secondPick = dist2(std::default_random_engine(seed));
 				break;
@@ -338,15 +323,17 @@ void PlayMode::update(float elapsed) {
 		scene.appleBools[13] = false;
 	};
 
-	auto detectPoint = [this]() { //Needs documentation
+	auto detectPoint = [this]() { //Detects if an apple is spawned, if the tree is rotated close to a block,
+		// and if said block contains one of the apples that is spawned
 
-		auto updateApples = [this]() {
+		auto updateApples = [this]() { //Randomly selects the next open apple on the canopy to render
 
 			//Change so not new randome engien each time
 			unsigned seed = (unsigned int)std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
 			std::uniform_int_distribution<uint8_t> dist(0, 9);
 			uint8_t firstPick = dist(std::default_random_engine(seed));
 			uint8_t truePick = firstPick;
+
 			do {
 				if (scene.appleBools[truePick]) {
 					truePick++;
@@ -357,23 +344,23 @@ void PlayMode::update(float elapsed) {
 					return;
 				}
 			} while (firstPick != truePick);
-			throw std::runtime_error("Error spawning picked-up apple\n");
+			throw std::runtime_error("Error spawning picked-up apple\n"); //All apples are already displayed
+			//(Should never occur)
 		};
 
 		auto vecNorm = [this](glm::vec3 thisVec) {
 			return (float)sqrt(thisVec.x * thisVec.x + thisVec.y * thisVec.y + thisVec.z * thisVec.z);
 		};
 
-		//Only works for one apple
 		if (abs(branchRotAngles.x + islandRotAngles.x) >= 0.95f * ROT_LIMIT ||
 			abs(branchRotAngles.y + islandRotAngles.y) >= 0.95f * ROT_LIMIT) { //If nearly fully rotated
 			std::array<float, 4> appleDists;
-			for (size_t whichApple = 0; whichApple < 4; whichApple++) {
+			for (size_t whichApple = 0; whichApple < 4; whichApple++) { //For each apple get distance to canopy center
 				float dist = vecNorm(branch->make_local_to_world()*glm::vec4(canopyDist,1.0) - fruitPos[whichApple]);
 				appleDists[whichApple] = dist;
 			}
 			float minDist = appleDists[0];
-			size_t minInd = 0;
+			size_t minInd = 0; //Store the index and distance of closest fruit
 			for (size_t whichApple = 1; whichApple < 4; whichApple++) {
 				if (appleDists[whichApple] < minDist) {
 					minDist = appleDists[whichApple];
@@ -381,7 +368,7 @@ void PlayMode::update(float elapsed) {
 				}
 			}
 			if (scene.appleBools[minInd + 10] && abs(branchRotAngles.x +islandRotAngles.x - branchRotAngles.y - +islandRotAngles.y) >= ROT_FACTOR/2) {
-				scene.appleBools[minInd + 10] = false;
+				scene.appleBools[minInd + 10] = false; //Only count as a new point if the closest apple has spawned
 				points++;
 				updateApples();
 			}
@@ -417,7 +404,7 @@ void PlayMode::update(float elapsed) {
 		std::cout << "game over\n";
 	}
 	levelUp();
-	if (level == 3) rotateIsland();
+	if (level == 3) rotateIsland(); //Level 3 adds island rotations every 20 seconds
 
 	//move camera:
 	{
@@ -441,13 +428,14 @@ void PlayMode::update(float elapsed) {
 		branch_rotation = glm::normalize(glm::angleAxis(branchRotAngles.x, glm::vec3(0.0f, 1.0f, 0.0f)));
 		branch_rotation = glm::normalize(glm::angleAxis(branchRotAngles.y, glm::vec3(1.0f, 0.0f, 0.0f))* branch_rotation);
 		branch->rotation = branch_rotation;
+		sphere_rotation = branch_rotation;
+		sphere->rotation = sphere_rotation;
 
 		//make it so that moving diagonally doesn't go faster:
 		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
 
 		glm::mat4x3 frame = camera->transform->make_local_to_parent();
 		glm::vec3 right = frame[0];
-		//glm::vec3 up = frame[1];
 		glm::vec3 forward = -frame[2];
 
 		camera->transform->position += move.x * right + move.y * forward;

@@ -52,8 +52,10 @@ struct PlayMode : Mode {
 	//Tree Transforms
 	Scene::Transform *branch = nullptr;
 	Scene::Transform *canopy = nullptr;
+	Scene::Transform* sphere = nullptr;
 	glm::quat canopy_rotation;
 	glm::quat branch_rotation;
+	glm::quat sphere_rotation;
 	glm::vec2 branchRotAngles = glm::vec2(0.0, 0.0);
 	float canopyHeight;
 
