@@ -2,7 +2,7 @@
 
 Author: Ben Cagan (bcagan)
 
-Design: Instead of controlling aa character trying to get apples off a tree, what if you tried to control a tree trying to get
+Design: Instead of controlling a character trying to get apples off a tree, what if you tried to control a tree trying to get
 apples on to itself? Why? Apples may not grow on trees, but you you can make the next best thing happen but rotating the tree's
 branch to correct this disaster, but watch out, there is a time limit!
 
