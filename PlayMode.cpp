@@ -18,6 +18,10 @@
 #define ROT_FACTOR 0.7f
 #define PI  3.14159265f
 #define ROT_LIMIT 45.0f / 360.0f * 2.f * PI
+#define DEGREE_CONVERT 1.0f / 360.0f * 2.f * PI
+
+
+std::array<std::array<float,4>, 3> bgCols;
 
 
 GLuint tree_meshes_for_lit_color_texture_program = 0;
@@ -47,20 +51,25 @@ Load< Scene > tree_scene(LoadTagDefault, []() -> Scene const * {
 });
 
 //To Do: //Camera is broken if angled initially at all... why?
-// 
-//Make level 3 (PRIORITY OVER 2) have an island rotate transform (ANIMATION, pick from a few and start at random if none are occuring)
-// Include island rotate with LOCK LIMIT ONLY of branch rotate
-// 
-//Canopy rotate near upper branch rotate limits
-//Loop and speed up after level 3 (item spawn, animation speed, and control spped)
 //Make asset textures change with each level
+//
+//Canopy rotate near upper branch rotate limits
 
 PlayMode::PlayMode() : scene(*tree_scene) {
 
+	//Setting up game state variables
 	playing = 1;
 	level = 1;
 	points = 0;
-	float speedFactor = 1.0f;
+	speedFactor = 1.0f;
+
+	//Creating bg  colors
+	float col1[4] = { 0.6f, 0.8f, 1.0f, 1.0f, };
+	float col2[4] = { 0.9f, 0.5f, 0.3f, 1.0f, };
+	float col3[4] = { 0.7f, 0.25f, 0.15f, 1.0f, };
+	bgCols[0][0] = col1[0]; bgCols[0][1] = col1[1]; bgCols[0][2] = col1[2]; bgCols[0][3] = col1[3];
+	bgCols[1][0] = col2[0]; bgCols[1][1] = col2[1]; bgCols[1][2] = col2[2]; bgCols[1][3] = col2[3];
+	bgCols[2][0] = col3[0]; bgCols[2][1] = col3[1]; bgCols[2][2] = col3[2]; bgCols[2][3] = col3[3];
 
 	auto getBBox = [this](std::string name) {
 		for (auto& thisDraw : scene.drawables) {
@@ -141,12 +150,22 @@ PlayMode::~PlayMode() {
 }
 
 void PlayMode::levelUp() {
-	for (size_t whichApple = 0; whichApple < 14; whichApple++) {
-		scene.appleBools[whichApple] = false;
+	if (points >= 10){ //If level up, despawn all apples and iterate level
+		for (size_t whichApple = 0; whichApple < 14; whichApple++) {
+			scene.appleBools[whichApple] = false;
+		}
+		timer = 0.f; //Restart level state
+		points = 0;
+		level++; //Go to next level
+		if (level == 4) {
+			level = 1;
+			speedFactor *= 1.5; //Ever 3 levels the game resets but at a higher speed
+			endTime = 70.0;
+		}
+		else {
+			endTime = 60.0;
+		}
 	}
-	level = 2;
-	std::cout << "level up!\n";
-	timer = 0.f;
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
@@ -228,7 +247,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			glm::vec3 zPos = camera->transform->position * glm::vec3(0.0,0.0,1.0);
 			noZPos.z = 0.0;
 			camera->transform->position =
-				glm::mat3_cast(glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 0.0f, 1.0f))) * noZPos + zPos;
+				glm::mat3_cast(glm::angleAxis(-motion.x*camera->fovy, glm::vec3(0.0f, 0.0f, 1.0f))) * noZPos + zPos;
 			return true;
 		}
 	}
@@ -237,19 +256,46 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 }
 
 void PlayMode::update(float elapsed) {
-	/*unsigned seed = (unsigned int) std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
-	//Found seed function from http://www.cplusplus.com/reference/random/uniform_real_distribution/operator()/
-	std::uniform_real_distribution < double > dist(0.0, 100.0 * (double) maxTop - 100.0*(double)(curGap + minBottom));
-	float curTop = (float) dist(std::default_random_engine(seed))/100.f + curGap + minBottom; //Randomly make new gate (top of gate gap)
-	dist.reset();
-	*/
+	
+	auto rotateIsland = [this]() { //Animates to rotate the island in stage 3
+		if ((float)(((int)timer + 10) % 20) < 5) { //Every 20 seconds, animate for 5 seconds, starting at timer = 10
+			if (timer - (float)(((int)timer + 10) / 20 - 1)*20.f <= 10.02f) { //Coin flip to decide axis
+				//Change so not new randome engien each time
+				unsigned seed = (unsigned int)std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
+				std::uniform_int_distribution<uint8_t> flip(0, 1);
+				whichAxis = (bool) flip(std::default_random_engine(seed));
+			}
+			float delta = timer - (float)(((int)timer + 10) / 20 -1) * 20.f - 10.f; //Offsets to get delta to 0 instead of 10 for angle calcs
+			if (delta >= 2.5f) delta -= 2.5f;
+			//Set to loop twice
 
-	auto updateFruit = [this](float delta, float timeToDespawn) {
+			//Animation:
+			delta /= 2.5f; 
+			delta *= (2.f * PI);
+			float theta = sin(delta) * 10.0f * DEGREE_CONVERT; 
+			if (whichAxis) islandRotAngles = glm::vec2(theta, 0.0f);
+			else islandRotAngles = glm::vec2(0.0f, theta); //Smoothly transition between angles of [-10.0,10.0] degrees
+
+		}
+		else { //Default resets angles to be safe
+			islandRotAngles = glm::vec2(0.0, 0.0);
+		}
+
+
+		//Sets island rotation
+		island_rotation = glm::normalize(glm::angleAxis(islandRotAngles.x, glm::vec3(0.0f, 1.0f, 0.0f)));
+		island_rotation = glm::normalize(glm::angleAxis(islandRotAngles.y, glm::vec3(1.0f, 0.0f, 0.0f)) * island_rotation);
+		island->rotation = island_rotation;
+
+	};
+
+	auto updateFruit = [this](float delta, float timeToDespawn) { //Animates fruit when they are ready to despawn
 		if (timeToDespawn >= delta && timeToDespawn - delta <= 0.66667) {
-			float theta = 3.f/2.f*16.f * PI * (timeToDespawn - delta);
+			float theta = 3.f/2.f*16.f * PI * (timeToDespawn - delta); //Updates all fruit heights for 2/3 of a second
+			//to rapidly move up and down (excitedly, one could say)
 			if (theta >= 8.f * PI) theta *= -2.f;
 			float fruitHeightOld = fruitHeightOff;
-			fruitHeightOff = (cos(theta + PI) + 1.f) / 2.f;
+			fruitHeightOff = (cos(theta + PI) + 1.f) / 2.f; //Speeds up halfway through
 			fruit0->position.z += (fruitHeightOff - fruitHeightOld);
 			fruit1->position.z += (fruitHeightOff - fruitHeightOld);
 			fruit2->position.z += (fruitHeightOff - fruitHeightOld);
@@ -257,7 +303,7 @@ void PlayMode::update(float elapsed) {
 		}
 	};
 
-	auto spawnApples = [this]() {
+	auto spawnApples = [this]() { //Needs documentation
 		//Change so not new randome engien each time
 		unsigned seed = (unsigned int) std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
 		std::uniform_int_distribution<uint8_t> dist(10, 13);
@@ -285,14 +331,14 @@ void PlayMode::update(float elapsed) {
 		scene.appleBools[firstPick] = true;
 	};
 
-	auto despawnApples = [this]() {
+	auto despawnApples = [this]() { //Sets the fruit to all not be spawned
 		scene.appleBools[10] = false;
 		scene.appleBools[11] = false;
 		scene.appleBools[12] = false;
 		scene.appleBools[13] = false;
 	};
 
-	auto detectPoint = [this]() {
+	auto detectPoint = [this]() { //Needs documentation
 
 		auto updateApples = [this]() {
 
@@ -319,7 +365,8 @@ void PlayMode::update(float elapsed) {
 		};
 
 		//Only works for one apple
-		if (abs(branchRotAngles.x) >= 0.95f * ROT_LIMIT || abs(branchRotAngles.y) >= 0.95f * ROT_LIMIT) { //If nearly fully rotated
+		if (abs(branchRotAngles.x + islandRotAngles.x) >= 0.95f * ROT_LIMIT ||
+			abs(branchRotAngles.y + islandRotAngles.y) >= 0.95f * ROT_LIMIT) { //If nearly fully rotated
 			std::array<float, 4> appleDists;
 			for (size_t whichApple = 0; whichApple < 4; whichApple++) {
 				float dist = vecNorm(branch->make_local_to_world()*glm::vec4(canopyDist,1.0) - fruitPos[whichApple]);
@@ -333,7 +380,7 @@ void PlayMode::update(float elapsed) {
 					minInd = whichApple;
 				}
 			}
-			if (scene.appleBools[minInd + 10] && abs(branchRotAngles.x - branchRotAngles.y) >= ROT_FACTOR/2) {
+			if (scene.appleBools[minInd + 10] && abs(branchRotAngles.x +islandRotAngles.x - branchRotAngles.y - +islandRotAngles.y) >= ROT_FACTOR/2) {
 				scene.appleBools[minInd + 10] = false;
 				points++;
 				updateApples();
@@ -342,51 +389,35 @@ void PlayMode::update(float elapsed) {
 	};
 
 	//Update spawn/despawn timer
-	if (spawnTimer > 0) spawnTimer += elapsed;
-	if (despawnTimer > 0) despawnTimer += elapsed;
+	if (spawnTimer > 0) spawnTimer += speedFactor * elapsed;
+	if (despawnTimer > 0) despawnTimer += speedFactor * elapsed;
+	//Check to see if new apples should be generated
 	if (spawnTimer >= timeToSpawn) {
 		spawnApples();
 		despawnTimer = spawnTimer - timeToSpawn + 0.0001f; //Error added to allow 0 to be an "off" state
 		spawnTimer = 0; //Reset timer and move remainder to other timer
 	}
+	//Check to see if apples should be despawned
 	if (despawnTimer >= timeToDespawn) {
 		despawnApples();
 		spawnTimer = despawnTimer - timeToDespawn + 0.0001f;
 		despawnTimer = 0;
 	}
+	//If apples are present, check to see if points should be earned
 	if (despawnTimer >= 0 && despawnTimer < timeToDespawn) {
 		detectPoint();
 	}
+	//Animation for when despawn is approaching
 	updateFruit(despawnTimer, timeToDespawn);
 
-	timer += elapsed;
-	std::cout << "Time left " << (int)(endTime - timer) << std::endl;
+	//Checks game state
+	timer += speedFactor * elapsed;
 	if (timer >= endTime) { //game over
 		playing = 0;
 		std::cout << "game over\n";
 	}
-	if (points >= 10 && level == 1) {
-		levelUp();
-		points = 0;
-	}
-
-	//slowly rotates through [0,1):
-	/*
-	wobble += elapsed / 10.0f;
-	wobble -= std::floor(wobble);
-
-	hip->rotation = hip_base_rotation * glm::angleAxis(
-		glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 1.0f, 0.0f)
-	);
-	upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
-		glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
-	lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
-		glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);*/
+	levelUp();
+	if (level == 3) rotateIsland();
 
 	//move camera:
 	{
@@ -394,15 +425,18 @@ void PlayMode::update(float elapsed) {
 		//combine inputs into a move:
 		constexpr float PlayerSpeed = 30.0f;
 		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) branchRotAngles.x = branchRotAngles.x - elapsed*ROT_FACTOR;
-		if (!left.pressed && right.pressed)  branchRotAngles.x = branchRotAngles.x + elapsed * ROT_FACTOR;
-		if (down.pressed && !up.pressed)  branchRotAngles.y = branchRotAngles.y + elapsed * ROT_FACTOR;
-		if (!down.pressed && up.pressed) branchRotAngles.y = branchRotAngles.y - elapsed * ROT_FACTOR;
-		if (branchRotAngles.x >= ROT_LIMIT) branchRotAngles.x = ROT_LIMIT;
-		else if (branchRotAngles.x <= -ROT_LIMIT) branchRotAngles.x = -ROT_LIMIT;
-		if (branchRotAngles.y >= ROT_LIMIT) branchRotAngles.y = ROT_LIMIT;
-		else if (branchRotAngles.y <= -ROT_LIMIT) branchRotAngles.y = -ROT_LIMIT;
-		assert(abs(branchRotAngles.x) <= ROT_LIMIT);
+		if (left.pressed && !right.pressed) branchRotAngles.x = branchRotAngles.x - speedFactor * elapsed*ROT_FACTOR;
+		if (!left.pressed && right.pressed)  branchRotAngles.x = branchRotAngles.x + speedFactor * elapsed * ROT_FACTOR;
+		if (down.pressed && !up.pressed)  branchRotAngles.y = branchRotAngles.y + speedFactor * elapsed * ROT_FACTOR;
+		if (!down.pressed && up.pressed) branchRotAngles.y = branchRotAngles.y - speedFactor * elapsed * ROT_FACTOR;
+		if (branchRotAngles.x + islandRotAngles.x >= ROT_LIMIT) {
+			branchRotAngles.x = ROT_LIMIT - islandRotAngles.x;
+			assert(branchRotAngles.x + islandRotAngles.x <= ROT_LIMIT + 0.0001f);
+		}
+		else if (branchRotAngles.x + islandRotAngles.x <= -ROT_LIMIT) branchRotAngles.x = -ROT_LIMIT - islandRotAngles.x;
+		if (branchRotAngles.y + islandRotAngles.y >= ROT_LIMIT) branchRotAngles.y = ROT_LIMIT - islandRotAngles.y;
+		else if (branchRotAngles.y + islandRotAngles.y <= -ROT_LIMIT) branchRotAngles.y = -ROT_LIMIT - islandRotAngles.y;
+
 		//Update proper branch rotation
 		branch_rotation = glm::normalize(glm::angleAxis(branchRotAngles.x, glm::vec3(0.0f, 1.0f, 0.0f)));
 		branch_rotation = glm::normalize(glm::angleAxis(branchRotAngles.y, glm::vec3(1.0f, 0.0f, 0.0f))* branch_rotation);
@@ -430,15 +464,14 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	//update camera aspect ratio for drawable:
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
 
-	//set up light type and position for lit_color_texture_program:
-	// TODO: consider using the Light(s) in the scene to do this
 	glUseProgram(lit_color_texture_program->program);
 	glUniform1i(lit_color_texture_program->LIGHT_TYPE_int, 1);
 	glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(glm::vec3(0.0f, 0.0f,-1.0f)));
 	glUniform3fv(lit_color_texture_program->LIGHT_ENERGY_vec3, 1, glm::value_ptr(glm::vec3(1.0f, 1.0f, 0.95f)));
 	glUseProgram(0);
 
-	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+	std::array<float,4> curCol = bgCols[level - 1];
+	glClearColor(curCol[0],curCol[1],curCol[2],curCol[3]);
 	glClearDepth(1.0f); //1.0 is actually the default value to clear the depth buffer to, but FYI you can change it.
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -460,12 +493,14 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 		));
 
 		constexpr float H = 0.09f;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		std::string timerStr = (std::string("; Time left ")).append(std::to_string(int(endTime - timer)));
+		std::string useStr = (std::string("Mouse motion rotates camera; WASD moves; escape ungrabs mouse")).append(timerStr);
+		lines.draw_text(useStr.c_str(),
 			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
 		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		lines.draw_text(useStr.c_str(),
 			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0xff, 0xff, 0xff, 0x00));

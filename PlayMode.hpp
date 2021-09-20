@@ -41,7 +41,7 @@ struct PlayMode : Mode {
 	virtual bool isPlaying() override;
 	int playing = 1;
 	void levelUp();
-	float speedFactor = 1.0f;
+	float speedFactor;
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
@@ -70,8 +70,10 @@ struct PlayMode : Mode {
 	//Island can rotate itself during stage 3
 	Scene::Transform* island = nullptr;
 	glm::quat island_rotation;
+	glm::vec2 islandRotAngles = glm::vec2(0.0, 0.0);
 	std::array<glm::vec3, 4> fruitPos;
 	glm::vec3 canopyDist;
+	bool whichAxis = false; //random axis of rotation for island in level 3
 
 	float wobble = 0.0f;
 	
