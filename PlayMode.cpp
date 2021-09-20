@@ -154,9 +154,12 @@ void PlayMode::levelUp() {
 		if (level == 4) {
 			level = 1;
 			speedFactor *= 1.5; //Ever 3 levels the game resets but at a higher speed
-			endTime = 70.0;
+			endTime = 60.0;
 		}
-		else {
+		else if (level == 3) {
+			endTime = 75.0;
+		}
+		else{
 			endTime = 60.0;
 		}
 	}
@@ -446,12 +449,15 @@ void PlayMode::update(float elapsed) {
 		constexpr float PlayerSpeed = 30.0f;
 		glm::vec2 move = glm::vec2(0.0f);
 		int angle = (int)(cameraTheta / 2.f / PI * 360.f);
+		while (angle < 0) angle += 360;
 		int offAngle = angle + 135;
 		if (offAngle % 360 >= 180) { //Account for reversed camera
 			bool swap = left.pressed;
 			left.pressed = right.pressed;
 			right.pressed = swap;
-			swap = down.pressed;
+		}
+		if (angle % 360 > 135 && angle % 360 < 315) {
+			bool swap = down.pressed;
 			down.pressed = up.pressed;
 			up.pressed = swap;
 		}
@@ -472,7 +478,9 @@ void PlayMode::update(float elapsed) {
 			bool swap = left.pressed;
 			left.pressed = right.pressed;
 			right.pressed = swap;
-			swap = down.pressed;
+		}
+		if (angle % 360 > 135 && angle % 360 < 315) {
+			bool swap = down.pressed;
 			down.pressed = up.pressed;
 			up.pressed = swap;
 		}
@@ -542,7 +550,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 
 		constexpr float H = 0.09f;
 		std::string timerStr = (std::string("; Time left ")).append(std::to_string(int(endTime - timer)));
-		std::string useStr = (std::string("Mouse motion rotates camera; WASD moves; escape ungrabs mouse")).append(timerStr);
+		std::string useStr = (std::string("Mouse motion rotates camera on horizontal axis; WASD rotates upper branch; escape ungrabs mouse")).append(timerStr);
 		lines.draw_text(useStr.c_str(),
 			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
