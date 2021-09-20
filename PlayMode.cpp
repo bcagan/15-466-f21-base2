@@ -550,7 +550,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 
 		constexpr float H = 0.09f;
 		std::string timerStr = (std::string("; Time left ")).append(std::to_string(int(endTime - timer)));
-		std::string useStr = (std::string("Mouse motion rotates camera on horizontal axis; WASD rotates upper branch; escape ungrabs mouse")).append(timerStr);
+		std::string useStr = (std::string("Mouse motion rotates camera horizontally; WASD rotates branch; escape ungrabs mouse")).append(timerStr);
 		lines.draw_text(useStr.c_str(),
 			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
