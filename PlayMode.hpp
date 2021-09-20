@@ -82,5 +82,6 @@ struct PlayMode : Mode {
 	
 	//camera:
 	Scene::Camera *camera = nullptr;
+	float cameraTheta = 0.0f;
 
 };

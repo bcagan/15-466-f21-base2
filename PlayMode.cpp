@@ -19,7 +19,7 @@
 #define PI  3.14159265f
 #define ROT_LIMIT 45.0f / 360.0f * 2.f * PI
 #define DEGREE_CONVERT 1.0f / 360.0f * 2.f * PI
-
+#define CAMERA_RADIUS 60.0f
 
 std::array<std::array<float,4>, 3> bgCols;
 
@@ -122,6 +122,18 @@ PlayMode::PlayMode() : scene(*tree_scene) {
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
+
+
+	camera->transform->rotation = glm::normalize(
+		camera->transform->rotation
+		* glm::angleAxis(0.f * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f)));
+	glm::vec3 cameraDir = camera->transform->rotation * glm::vec3(0.0f, 0.0f, -1.0f);
+	cameraDir.z = 0.0f;
+	cameraDir = glm::normalize(cameraDir);
+	glm::vec3 posDir = glm::vec3(-CAMERA_RADIUS, -CAMERA_RADIUS, -CAMERA_RADIUS) * cameraDir;
+	posDir.z = camera->transform->position.z;
+	camera->transform->position = posDir;
+	cameraTheta -= 0.f * camera->fovy;
 }
 
 bool PlayMode::isPlaying() {
@@ -223,13 +235,13 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			camera->transform->rotation = glm::normalize(
 				camera->transform->rotation
 				* glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f)));
-			glm::vec3 noZPos = camera->transform->position;/*
-			cameraRotAngle -= motion.x * camera->fovy;
-			camera->transform->rotation = glm::normalize(glm::angleAxis(cameraRotAngle, glm::vec3(0.0f, 0.0f, 1.0f)));*/
-			glm::vec3 zPos = camera->transform->position * glm::vec3(0.0,0.0,1.0);
-			noZPos.z = 0.0;
-			camera->transform->position = 
-				glm::mat3_cast(glm::angleAxis(-motion.x*camera->fovy, glm::vec3(0.0f, 0.0f, 1.0f))) * noZPos + zPos;
+			glm::vec3 cameraDir = camera->transform->rotation * glm::vec3(0.0f, 0.0f, -1.0f);
+			cameraDir.z = 0.0f;
+			cameraDir = glm::normalize(cameraDir);
+			glm::vec3 posDir = glm::vec3(-CAMERA_RADIUS, -CAMERA_RADIUS, -CAMERA_RADIUS) *cameraDir;
+			posDir.z = camera->transform->position.z;
+			camera->transform->position = posDir;
+			cameraTheta -= motion.x * camera->fovy;
 			return true;
 		}
 	}
@@ -433,10 +445,37 @@ void PlayMode::update(float elapsed) {
 		//combine inputs into a move:
 		constexpr float PlayerSpeed = 30.0f;
 		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) branchRotAngles.x = branchRotAngles.x - speedFactor * elapsed*ROT_FACTOR;
-		if (!left.pressed && right.pressed)  branchRotAngles.x = branchRotAngles.x + speedFactor * elapsed * ROT_FACTOR;
-		if (down.pressed && !up.pressed)  branchRotAngles.y = branchRotAngles.y + speedFactor * elapsed * ROT_FACTOR;
-		if (!down.pressed && up.pressed) branchRotAngles.y = branchRotAngles.y - speedFactor * elapsed * ROT_FACTOR;
+		int angle = (int)(cameraTheta / 2.f / PI * 360.f);
+		int offAngle = angle + 135;
+		if (offAngle % 360 >= 180) { //Account for reversed camera
+			bool swap = left.pressed;
+			left.pressed = right.pressed;
+			right.pressed = swap;
+			swap = down.pressed;
+			down.pressed = up.pressed;
+			up.pressed = swap;
+		}
+		if (offAngle % 180 >= 90) { //Make controls camera aligned
+			if (left.pressed && !right.pressed) branchRotAngles.x = branchRotAngles.x - speedFactor * elapsed * ROT_FACTOR;
+			if (!left.pressed && right.pressed)  branchRotAngles.x = branchRotAngles.x + speedFactor * elapsed * ROT_FACTOR;
+			if (down.pressed && !up.pressed)  branchRotAngles.y = branchRotAngles.y + speedFactor * elapsed * ROT_FACTOR;
+			if (!down.pressed && up.pressed) branchRotAngles.y = branchRotAngles.y - speedFactor * elapsed * ROT_FACTOR;
+		}
+		else {
+			if (left.pressed && !right.pressed) branchRotAngles.y = branchRotAngles.y - speedFactor * elapsed * ROT_FACTOR;
+			if (!left.pressed && right.pressed)  branchRotAngles.y = branchRotAngles.y + speedFactor * elapsed * ROT_FACTOR;
+			if (down.pressed && !up.pressed)  branchRotAngles.x = branchRotAngles.x + speedFactor * elapsed * ROT_FACTOR;
+			if (!down.pressed && up.pressed) branchRotAngles.x = branchRotAngles.x - speedFactor * elapsed * ROT_FACTOR;
+
+		}
+		if (offAngle % 360 >= 180) { //Account for reversed camera
+			bool swap = left.pressed;
+			left.pressed = right.pressed;
+			right.pressed = swap;
+			swap = down.pressed;
+			down.pressed = up.pressed;
+			up.pressed = swap;
+		}
 		if (branchRotAngles.x + islandRotAngles.x >= ROT_LIMIT) {
 			branchRotAngles.x = ROT_LIMIT - islandRotAngles.x;
 			assert(branchRotAngles.x + islandRotAngles.x <= ROT_LIMIT + 0.0001f);
