@@ -7,6 +7,8 @@
 #include <vector>
 #include <deque>
 #include <array>
+#include<chrono>
+#include <random>
 
 struct PlayMode : Mode {
 	PlayMode();

@@ -257,7 +257,6 @@ void PlayMode::update(float elapsed) {
 	auto rotateIsland = [this]() { //Animates to rotate the island in stage 3
 		if ((float)(((int)timer + 10) % 20) < 5) { //Every 20 seconds, animate for 5 seconds, starting at timer = 10
 			if (timer - (float)(((int)timer + 10) / 20 - 1)*20.f <= 10.02f) { //Coin flip to decide axis
-				//Change so not new randome engien each time
 				unsigned seed = (unsigned int)std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
 				std::uniform_int_distribution<uint8_t> flip(0, 1);
 				whichAxis = (bool) flip(std::default_random_engine(seed));
@@ -301,7 +300,6 @@ void PlayMode::update(float elapsed) {
 	};
 
 	auto spawnApples = [this]() { 
-		//Change so not new randome engien each time
 		unsigned seed = (unsigned int) std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
 		std::uniform_int_distribution<uint8_t> dist(10, 13);
 		uint8_t firstPick = dist(std::default_random_engine(seed));
