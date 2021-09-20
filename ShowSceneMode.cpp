@@ -3,6 +3,10 @@
 
 #include <iostream>
 
+bool ShowSceneMode::isPlaying() {
+	return true;
+}
+
 ShowSceneMode::ShowSceneMode(Scene const &scene_) : scene(scene_) {
 
 	//Set up camera-only scene:

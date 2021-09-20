@@ -26,6 +26,6 @@ struct Mode : std::enable_shared_from_this< Mode > {
 	static void set_current(std::shared_ptr< Mode > const &);
 
 	//Is mode running?
-	virtual bool isPlaying();
+	virtual bool isPlaying() { return true; }
 };
 

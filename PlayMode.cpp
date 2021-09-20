@@ -15,9 +15,10 @@
 #include <iostream>
 #include <assert.h>
 
-#define ROT_FACTOR 1.0f
+#define ROT_FACTOR 0.7f
 #define PI  3.14159265f
 #define ROT_LIMIT 45.0f / 360.0f * 2.f * PI
+
 
 GLuint tree_meshes_for_lit_color_texture_program = 0;
 Load< MeshBuffer >tree_meshes(LoadTagDefault, []() -> MeshBuffer const * {
@@ -46,11 +47,7 @@ Load< Scene > tree_scene(LoadTagDefault, []() -> Scene const * {
 });
 
 //To Do: //Camera is broken if angled initially at all... why?
-// Linking error for isPlaying()
 // 
-// 
-//Make apples do a fun transform when they are about to dissapear
-//Make level 2 have only one apple
 //Make level 3 (PRIORITY OVER 2) have an island rotate transform (ANIMATION, pick from a few and start at random if none are occuring)
 // Include island rotate with LOCK LIMIT ONLY of branch rotate
 // 
@@ -61,6 +58,9 @@ Load< Scene > tree_scene(LoadTagDefault, []() -> Scene const * {
 PlayMode::PlayMode() : scene(*tree_scene) {
 
 	playing = 1;
+	level = 1;
+	points = 0;
+	float speedFactor = 1.0f;
 
 	auto getBBox = [this](std::string name) {
 		for (auto& thisDraw : scene.drawables) {
@@ -141,7 +141,12 @@ PlayMode::~PlayMode() {
 }
 
 void PlayMode::levelUp() {
+	for (size_t whichApple = 0; whichApple < 14; whichApple++) {
+		scene.appleBools[whichApple] = false;
+	}
+	level = 2;
 	std::cout << "level up!\n";
+	timer = 0.f;
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
@@ -239,6 +244,19 @@ void PlayMode::update(float elapsed) {
 	dist.reset();
 	*/
 
+	auto updateFruit = [this](float delta, float timeToDespawn) {
+		if (timeToDespawn >= delta && timeToDespawn - delta <= 0.66667) {
+			float theta = 3.f/2.f*16.f * PI * (timeToDespawn - delta);
+			if (theta >= 8.f * PI) theta *= -2.f;
+			float fruitHeightOld = fruitHeightOff;
+			fruitHeightOff = (cos(theta + PI) + 1.f) / 2.f;
+			fruit0->position.z += (fruitHeightOff - fruitHeightOld);
+			fruit1->position.z += (fruitHeightOff - fruitHeightOld);
+			fruit2->position.z += (fruitHeightOff - fruitHeightOld);
+			fruit3->position.z += (fruitHeightOff - fruitHeightOld);
+		}
+	};
+
 	auto spawnApples = [this]() {
 		//Change so not new randome engien each time
 		unsigned seed = (unsigned int) std::chrono::system_clock::now().time_since_epoch().count(); //Creating seed,
@@ -246,23 +264,25 @@ void PlayMode::update(float elapsed) {
 		uint8_t firstPick = dist(std::default_random_engine(seed));
 		uint8_t secondPick = 11;
 		std::uniform_int_distribution<uint8_t> dist2(11, 13);
-		switch (firstPick) {
-		case(10):
-			secondPick = dist2(std::default_random_engine(seed));
-			break;
-		case(11):
-			secondPick = dist2(std::default_random_engine(seed));
-			if (secondPick == 11) secondPick = 10;
-			break;
-		case(12):
-			secondPick = dist2(std::default_random_engine(seed));
-			if (secondPick == 12) secondPick = 10;
-			break;
-		default:
-			uint8_t secondPick = dist2(std::default_random_engine(seed)) - 1;
+		if(level == 1){
+			switch (firstPick) {
+			case(10):
+				secondPick = dist2(std::default_random_engine(seed));
+				break;
+			case(11):
+				secondPick = dist2(std::default_random_engine(seed));
+				if (secondPick == 11) secondPick = 10;
+				break;
+			case(12):
+				secondPick = dist2(std::default_random_engine(seed));
+				if (secondPick == 12) secondPick = 10;
+				break;
+			default:
+				uint8_t secondPick = dist2(std::default_random_engine(seed)) - 1;
+			}
+			scene.appleBools[secondPick] = true;
 		}
 		scene.appleBools[firstPick] = true;
-		scene.appleBools[secondPick] = true;
 	};
 
 	auto despawnApples = [this]() {
@@ -292,7 +312,7 @@ void PlayMode::update(float elapsed) {
 				}
 			} while (firstPick != truePick);
 			throw std::runtime_error("Error spawning picked-up apple\n");
-		}
+		};
 
 		auto vecNorm = [this](glm::vec3 thisVec) {
 			return (float)sqrt(thisVec.x * thisVec.x + thisVec.y * thisVec.y + thisVec.z * thisVec.z);
@@ -336,17 +356,16 @@ void PlayMode::update(float elapsed) {
 	}
 	if (despawnTimer >= 0 && despawnTimer < timeToDespawn) {
 		detectPoint();
-		std::cout << "Score is: " << points << std::endl;
 	}
-
+	updateFruit(despawnTimer, timeToDespawn);
 
 	timer += elapsed;
 	std::cout << "Time left " << (int)(endTime - timer) << std::endl;
 	if (timer >= endTime) { //game over
-		playing = 0; //does not work
+		playing = 0;
 		std::cout << "game over\n";
 	}
-	if (points >= 10) {
+	if (points >= 10 && level == 1) {
 		levelUp();
 		points = 0;
 	}

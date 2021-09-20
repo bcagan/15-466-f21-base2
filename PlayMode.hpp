@@ -26,19 +26,22 @@ struct PlayMode : Mode {
 	} left, right, down, up;
 
 	float points = 0;
+	size_t level = 1;
 
 	//Times for spawning apples
 	float spawnTimer = 0.000001f;
 	float despawnTimer = 0.f;
 	float timeToSpawn = 3.f;
-	float timeToDespawn = 1.45f;
+	float timeToDespawn = 2.1f;
+	float fruitHeightOff = 0.0f;
 
 	//Game timer
 	float timer = 0.f;
-	float endTime = 40.0f;
+	float endTime = 60.0f;
 	virtual bool isPlaying() override;
 	int playing = 1;
 	void levelUp();
+	float speedFactor = 1.0f;
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;

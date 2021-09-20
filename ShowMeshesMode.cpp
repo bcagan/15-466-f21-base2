@@ -5,6 +5,11 @@
 
 #include <iostream>
 
+
+bool ShowMeshesMode::isPlaying() {
+	return true;
+}
+
 ShowMeshesMode::ShowMeshesMode(MeshBuffer const &buffer_) : buffer(buffer_) {
 	vao = buffer.make_vao_for_program(show_meshes_program->program);
 
