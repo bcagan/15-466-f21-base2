@@ -19,7 +19,7 @@ has to reach over to them to be able to grab them. After level 1, the number of 
 in level 3, the island the tree is on will start to rotate. Watch out, this will affect the rotation of your branch as well! After level 3
 the game loops, but gets faster and faster after ever 3 levels.
 
-Sources:
+Sources: 
 
 This game was built with [NEST](NEST.md).
 
